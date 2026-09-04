@@ -14,8 +14,8 @@ public enum MaskType {
     SIX(6, (a, b) -> ((a * b) % 2 + a * b % 3) % 2 == 0),
     SEVEN(7, (a, b) -> ((a + b) % 2 + a * b % 3) % 2 == 0);
 
-    final int value;
-    final PatternPredicate pattern;
+    private final int value;
+    private final PatternPredicate pattern;
 
     MaskType(int value, PatternPredicate pattern) {
         this.value = value;

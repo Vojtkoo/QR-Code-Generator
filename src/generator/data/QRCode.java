@@ -269,14 +269,6 @@ public class QRCode {
             }
         }
 
-        //Calculate mask
-        boolean[][] mask = new boolean[size][size];
-        for(int i = 0; i < size; i++) {
-            for(int j = 0; j < size; j++) {
-                mask[i][j] = imageMatrix[i][j] == null && maskType.getPattern().get(i, j);
-            }
-        }
-
         //Data
         int index = 0;
         boolean dir = true;
@@ -298,13 +290,13 @@ public class QRCode {
                 }
 
                 if(imageMatrix[x][y] == null) {
-                    imageMatrix[x][y] = data[index++];
+                    imageMatrix[x][y] = data[index++] ^ maskType.getPattern().get(x, y);
                 }
 
                 if(index >= data.length) break out;
 
                 if(imageMatrix[x - 1][y] == null) {
-                    imageMatrix[x - 1][y] = data[index++];
+                    imageMatrix[x - 1][y] = data[index++] ^ maskType.getPattern().get(x - 1, y);
                 }
             }
             dir = !dir;
@@ -336,22 +328,30 @@ public class QRCode {
         rawInfo += "0000000000";
 
         int start = rawInfo.indexOf("1");
-        rawInfo = rawInfo.substring(start);
-        String metadataGenerator = "10100110111";
+        if(start == -1) {
+            rawInfo = "0".repeat(15);
+        } else {
+            rawInfo = rawInfo.substring(start);
+            String metadataGenerator = "10100110111";
 
-        while(rawInfo.length() > 10) {
-            int diff = rawInfo.length() - metadataGenerator.length();
-            String paddedGen = metadataGenerator;
-            paddedGen += "0".repeat(diff);
+            while(rawInfo.length() > 10) {
+                int diff = rawInfo.length() - metadataGenerator.length();
+                String paddedGen = metadataGenerator;
+                paddedGen += "0".repeat(diff);
 
-            StringBuilder res = new StringBuilder();
-            for(int i = 0; i < rawInfo.length(); i++) {
-                String bitVal = rawInfo.charAt(i) == '1' ? (paddedGen.charAt(i) == '1' ? "0" : "1") : String.valueOf(paddedGen.charAt(i));
-                res.append(bitVal);
+                StringBuilder res = new StringBuilder();
+                for(int i = 0; i < rawInfo.length(); i++) {
+                    String bitVal = rawInfo.charAt(i) == '1' ? (paddedGen.charAt(i) == '1' ? "0" : "1") : String.valueOf(paddedGen.charAt(i));
+                    res.append(bitVal);
+                }
+
+                start = res.indexOf("1");
+                if(start == -1) {
+                    rawInfo = "0".repeat(15);
+                } else {
+                    rawInfo = res.substring(start);
+                }
             }
-
-            start = res.indexOf("1");
-            rawInfo = res.substring(start);
         }
 
         for(int i = 0; i < rawInfo.length(); i++) {
@@ -389,13 +389,6 @@ public class QRCode {
             imageMatrix[8][7 - i] = metadata[j + 8];
         }
 
-        //Apply mask
-        for(int i = 0; i < size; i++) {
-            for(int j = 0; j < size; j++) {
-                imageMatrix[i][j] = Boolean.TRUE.equals(imageMatrix[i][j]) ^ mask[i][j];
-            }
-        }
-
         boolean[][] imageMatrixInternal = new boolean[size][size];
         for(int i = 0; i < size; i++) {
             for(int j = 0; j < size; j++) {
@@ -429,7 +422,7 @@ public class QRCode {
         int runScore = 0;
         int boxScore = 0;
         int finderScore = 0;
-        int balanceScore = 0;
+        int balanceScore;
         int darkModuleCount = 0;
 
         int xRunLen = 0;
@@ -441,7 +434,7 @@ public class QRCode {
                 }
 
                 //Run patterns
-                if(i > 0 && (grid[i][j] != grid[i - 1][j])) {
+                if(j > 0 && (grid[j][i] != grid[j - 1][i])) {
                     if(xRunLen >= 5) {
                         runScore += xRunLen - 2;
                     }
@@ -472,28 +465,48 @@ public class QRCode {
                 }
 
                 //Finder-like patterns
-                if(i < grid.length - 10) {
-                    boolean[] testSubarray = new boolean[11];
+                boolean[] testSubarrayX = new boolean[11];
+                boolean[] testSubarrayY = new boolean[11];
 
-                    for(int k = 0; k < testSubarray.length; k++) {
-                        testSubarray[k] = grid[i + k][j];
+                int x = i - 4;
+                int y = j - 4;
+                for(int k = 0; k < testSubarrayX.length; k++) {
+                    if(x + k < 0) {
+                        testSubarrayX[k] = false;
+                    } else if(x + k >= grid.length) {
+                        testSubarrayX[k] = false;
+                    } else {
+                        testSubarrayX[k] = grid[x + k][j];
                     }
 
-                    if(Arrays.equals(testSubarray, FINDER_1) || Arrays.equals(testSubarray, FINDER_2)) {
-                        finderScore += 40;
+                    if(y + k < 0) {
+                        testSubarrayY[k] = false;
+                    } else if(y + k >= grid.length) {
+                        testSubarrayY[k] = false;
+                    } else {
+                        testSubarrayY[k] = grid[i][y + k];
                     }
                 }
 
-                if(j < grid.length - 10) {
-                    boolean[] testSubarray = new boolean[11];
+                if(Arrays.equals(testSubarrayX, FINDER_1) || Arrays.equals(testSubarrayX, FINDER_2)) {
+                    finderScore += 40;
+                }
 
-                    System.arraycopy(grid[i], j, testSubarray, 0, testSubarray.length);
-
-                    if(Arrays.equals(testSubarray, FINDER_1) || Arrays.equals(testSubarray, FINDER_2)) {
-                        finderScore += 40;
-                    }
+                if(Arrays.equals(testSubarrayY, FINDER_1) || Arrays.equals(testSubarrayY, FINDER_2)) {
+                    finderScore += 40;
                 }
             }
+
+            if(xRunLen >= 5) {
+                runScore += xRunLen - 2;
+            }
+
+            if(yRunLen >= 5) {
+                runScore += yRunLen - 2;
+            }
+
+            xRunLen = 0;
+            yRunLen = 0;
         }
 
         double darkPercentage = ((double) darkModuleCount) / (grid.length * grid.length);

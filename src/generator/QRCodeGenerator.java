@@ -185,9 +185,7 @@ public class QRCodeGenerator {
         for(int i = 0; i < numEccBytes; i++) {
             for(int block = 0; block < numBlocks; block++) {
                 for(int bit = 0; bit < 8; bit++) {
-                    //TODO: FIX BETTER
                     int index = offset + (i * numBlocks + block) * 8 + bit;
-                    //if(index >= weavedData.length) break;
                     weavedData[index] = eccBlocks[block][i * 8 + bit];
                 }
             }
