@@ -54,6 +54,58 @@ public class QRCodeGenerator {
     /**
      * Generates a new QR code.
      * @param data Data to encode
+     * @return The generated QR code
+     * @throws InvalidAlgorithmParameterException Is thrown when the data is too long to be encoded.
+     */
+    public static QRCode generate(String data) throws InvalidAlgorithmParameterException {
+        ErrorCorrectionLevel level = getMaximumLevel(data);
+
+        return generate(data, 1, MaskType.AUTO, level);
+    }
+
+    private static ErrorCorrectionLevel getMaximumLevel(String data) {
+        int size = getBitSize(data);
+        EncodingType encodingType = getEncodingType(data);
+
+        int lowVersion = getVersion(size, ErrorCorrectionLevel.LOW, encodingType);
+        ErrorCorrectionLevel biggest = ErrorCorrectionLevel.LOW;
+
+        for(ErrorCorrectionLevel level : ErrorCorrectionLevel.values()) {
+            if(level.equals(ErrorCorrectionLevel.LOW)) continue;
+
+
+            if(getVersion(size, level, encodingType) > lowVersion) {
+                return biggest;
+            }
+
+            biggest = level;
+        }
+
+        return biggest;
+    }
+
+    private static int getBitSize(String data) {
+        EncodingType type = getEncodingType(data);
+
+        boolean[][] binaryData;
+        binaryData = switch(type) {
+            case NUMERIC -> getNumericBinaryData(data);
+            case ALPHANUMERIC -> getAlphaNumericBinaryData(data);
+            case BYTE -> getByteBinaryData(data);
+            case KANJI -> getKanjiBinaryData(data);
+        };
+
+        int numBits = 0;
+        for(boolean[] values : binaryData) {
+            numBits += values.length;
+        }
+
+        return numBits;
+    }
+
+    /**
+     * Generates a new QR code.
+     * @param data Data to encode
      * @param errorCorrectionLevel Sets the error correction level.
      * @return The generated QR code
      * @throws InvalidAlgorithmParameterException Is thrown when the data is too long to be encoded.
@@ -427,6 +479,7 @@ public class QRCodeGenerator {
     }
 
     private static int getVersion(int numBits, ErrorCorrectionLevel level, EncodingType type) {
+        numBits += 4;
         for(int i = 1; i <= 40; i++) {
             int testVal = Math.ceilDiv(numBits + getCountLength(type, i), 8);
             if(getDataLengthForVersion(i, level) >= testVal) {
